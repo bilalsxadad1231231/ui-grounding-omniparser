@@ -97,10 +97,10 @@ def load_all_models():
             ocr_reader = easyocr.Reader(['en'], gpu=False)
         
         # Configure PaddleOCR - automatically use GPU if CUDA is available
+        # Note: Newer PaddleOCR versions automatically detect GPU, no need for use_gpu parameter
         paddle_ocr = PaddleOCR(
             lang='en',
             use_angle_cls=False,
-            use_gpu=cuda_available,
             show_log=False,
             max_batch_size=512,  # Smaller batch for speed
             use_dilation=False,  # Disable for speed
