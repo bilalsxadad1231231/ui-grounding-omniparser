@@ -101,7 +101,6 @@ def load_all_models():
         paddle_ocr = PaddleOCR(
             lang='en',
             use_angle_cls=False,
-            show_log=False,
             max_batch_size=512,  # Smaller batch for speed
             use_dilation=False,  # Disable for speed
             det_db_thresh=0.3,   # Lower threshold for speed
