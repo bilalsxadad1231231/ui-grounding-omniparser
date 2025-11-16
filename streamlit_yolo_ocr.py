@@ -123,7 +123,7 @@ def fast_ocr_detection(image, use_paddleocr=True, high_quality=False):
         # Use PaddleOCR
         print("🔧 Using PaddleOCR for text detection...")
         logging.info("Using PaddleOCR")
-        result = st.session_state.paddle_ocr.ocr(image_np, cls=False)[0]
+        result = st.session_state.paddle_ocr.ocr(image_np)[0]
         if result is None:
             return [], []
         # Adjust threshold based on quality mode - use list comprehension with single pass
