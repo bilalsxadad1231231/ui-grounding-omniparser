@@ -96,27 +96,10 @@ def load_all_models():
             st.warning(f"⚠️ GPU not available for EasyOCR, using CPU: {e}")
             ocr_reader = easyocr.Reader(['en'], gpu=False)
         
-        # Configure PaddleOCR - automatically use GPU if CUDA is available
-        # Note: Newer PaddleOCR versions automatically detect GPU, no need for use_gpu parameter
+        # Configure PaddleOCR - simplified for compatibility
+        # Note: Newer PaddleOCR versions automatically detect GPU and use default optimal settings
         paddle_ocr = PaddleOCR(
-            lang='en',
-            use_angle_cls=False,
-            max_batch_size=512,  # Smaller batch for speed
-            use_dilation=False,  # Disable for speed
-            det_db_thresh=0.3,   # Lower threshold for speed
-            det_db_box_thresh=0.5,
-            det_db_unclip_ratio=1.6,
-            rec_batch_num=6,     # Smaller batch for speed
-            rec_char_dict_path=None,
-            rec_image_shape="3, 32, 320",
-            rec_algorithm='CRNN',
-            rec_model_dir=None,
-            rec_image_inverse=True,
-            max_text_length=25,  # Limit text length for speed
-            use_space_char=True,
-            drop_score=0.3,      # Lower threshold for speed
-            use_mp=True,         # Enable multiprocessing
-            total_process_num=2  # Limit processes for stability
+            lang='en'
         )
         
         if cuda_available:
