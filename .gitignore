@@ -1,13 +1,56 @@
-weights/icon_caption_blip2
-weights/icon_caption_florence
-weights/icon_detect/
-weights/icon_detect_v1_5/
-weights/icon_detect_v1_5_2/
-.gradio
+# Model weights (keep local, don't push)
+weights/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# Python cache
 __pycache__/
-debug.ipynb
-util/__pycache__/
-index.html?linkid=2289031
-wget-log
-weights/icon_caption_florence_v2/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+omni_env/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Gradio
+.gradio/
 omnitool/gradio/uploads/
+
+# Output files
+*.jpg
+*.png
+*.jpeg
+*.txt
+!requirements.txt
+!README.md
+!LICENSE
+!SECURITY.md
+
+# Logs
+*.log
+wget-log
+debug.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+index.html?*
