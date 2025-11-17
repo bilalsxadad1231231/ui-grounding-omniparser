@@ -118,7 +118,6 @@ def fast_ocr_detection(image, use_paddleocr=True, high_quality=False):
         image_np = image
     
     w, h = image.size if hasattr(image, 'size') else image.shape[:2][::-1]
-    
     if use_paddleocr and st.session_state.paddle_ocr:
         # Use PaddleOCR
         print("🔧 Using PaddleOCR for text detection...")
