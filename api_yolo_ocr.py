@@ -158,17 +158,10 @@ def fast_ocr_detection(image, use_paddleocr=True, high_quality=False):
 
 @app.on_event("startup")
 async def startup_event():
-    """Load models on startup"""
+    """Load all models when FastAPI server starts"""
+    logging.info("🚀 FastAPI server starting - loading all models...")
     load_all_models()
-
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {
-        "message": "YOLO OCR Detection API",
-        "status": "running",
-        "models_loaded": models['models_loaded']
-    }
+    logging.info("✅ All models loaded successfully!")
 
 @app.get("/health")
 async def health_check():
