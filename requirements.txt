@@ -1,7 +1,6 @@
 # Core ML and Computer Vision
 torch
 torchvision
-numpy>=1.26.4,<3.0.0
 opencv-python
 pillow
 
