@@ -12,8 +12,6 @@ import io
 from pathlib import Path
 import argparse
 from typing import List, Dict, Tuple
-import cv2
-import numpy as np
 
 class YOLOOCRClient:
     def __init__(self, api_url: str = "http://localhost:8000"):
