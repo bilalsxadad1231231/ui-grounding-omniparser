@@ -11,7 +11,7 @@ import io
 import numpy as np
 import logging
 import sys
-from util.utils import get_yolo_model, get_som_labeled_img
+from util.utils import get_yolo_model, get_som_labeled_img, get_caption_model_processor
 import easyocr
 from paddleocr import PaddleOCR
 import time
@@ -40,6 +40,7 @@ models = {
     'yolo_model': None,
     'ocr_reader': None,
     'paddle_ocr': None,
+    'caption_model_processor': None,
     'models_loaded': False
 }
 
@@ -77,6 +78,24 @@ def load_all_models():
         logging.info("✅ PaddleOCR loaded with GPU acceleration")
     else:
         logging.info("ℹ️ PaddleOCR loaded with CPU")
+    
+    # Load Florence caption model
+    try:
+        device = "cuda" if cuda_available else "cpu"
+        caption_model_path = 'weights/icon_caption_florence'
+        models['caption_model_processor'] = get_caption_model_processor(
+            model_name="florence2",
+            model_name_or_path=caption_model_path,
+            device=device
+        )
+        if cuda_available:
+            logging.info("✅ Florence-2 caption model loaded with GPU acceleration")
+        else:
+            logging.info("ℹ️ Florence-2 caption model loaded with CPU")
+    except Exception as e:
+        logging.warning(f"⚠️ Failed to load Florence caption model: {e}")
+        logging.warning("⚠️ Captioning will be disabled")
+        models['caption_model_processor'] = None
     
     models['models_loaded'] = True
     logging.info("✅ All models loaded successfully!")
@@ -169,7 +188,8 @@ async def health_check():
     return {
         "status": "healthy",
         "models_loaded": models['models_loaded'],
-        "cuda_available": torch.cuda.is_available()
+        "cuda_available": torch.cuda.is_available(),
+        "caption_model_available": models['caption_model_processor'] is not None
     }
 
 @app.post("/detect")
@@ -179,7 +199,8 @@ async def detect_objects(
     box_threshold: float = 0.05,
     iou_threshold: float = 0.1,
     imgsz: int = 640,
-    high_quality: bool = False
+    high_quality: bool = False,
+    use_captioning: bool = True
 ):
     """
     Detect objects and text in an image
@@ -191,9 +212,10 @@ async def detect_objects(
     - iou_threshold: Intersection over Union threshold (0.1-0.9)
     - imgsz: YOLO input image size (320, 640, 1024)
     - high_quality: Use high quality OCR settings (slower but more accurate)
+    - use_captioning: Enable Florence-2 model for icon captioning (True) or disable (False)
     
     Returns:
-    - JSON with bounding boxes, text, and timing information
+    - JSON with bounding boxes, text, captions, and timing information
     """
     if not models['models_loaded']:
         raise HTTPException(status_code=503, detail="Models not loaded yet. Please wait.")
@@ -211,7 +233,7 @@ async def detect_objects(
         text, ocr_bbox = fast_ocr_detection(image, use_paddleocr, high_quality)
         ocr_time = time.time() - ocr_start
         
-        # YOLO processing
+        # YOLO processing with optional captioning
         yolo_start = time.time()
         box_overlay_ratio = original_size[0] / 3200
         draw_bbox_config = {
@@ -221,6 +243,13 @@ async def detect_objects(
             'thickness': max(int(3 * box_overlay_ratio), 1),
         }
         
+        # Use Florence captioning if enabled and model is loaded
+        caption_model_processor = models['caption_model_processor'] if use_captioning else None
+        use_local_semantics = use_captioning and (caption_model_processor is not None)
+        
+        if use_captioning and caption_model_processor is None:
+            logging.warning("⚠️ Captioning requested but Florence model not available. Proceeding without captions.")
+        
         dino_labled_img, label_coordinates, parsed_content_list = get_som_labeled_img(
             image, 
             models['yolo_model'], 
@@ -228,18 +257,16 @@ async def detect_objects(
             output_coord_in_ratio=True, 
             ocr_bbox=ocr_bbox,
             draw_bbox_config=draw_bbox_config, 
-            caption_model_processor=None,
+            caption_model_processor=caption_model_processor,
             ocr_text=text,
             iou_threshold=iou_threshold, 
             imgsz=imgsz,
-            use_local_semantics=False
+            use_local_semantics=use_local_semantics,
+            batch_size=128
         )
         yolo_time = time.time() - yolo_start
         
         total_time = time.time() - start_time
-        
-        # Convert base64 image back to PIL for processing
-        result_image = Image.open(io.BytesIO(base64.b64decode(dino_labled_img)))
         
         # Prepare response with bounding boxes
         # Format: [x1, y1, x2, y2] for each box
@@ -256,11 +283,15 @@ async def detect_objects(
         icon_boxes = []
         for item in parsed_content_list:
             if item.get('type') != 'text':  # Assuming text is already in ocr_boxes
+                # Get caption/content from the item
+                caption = item.get('content', '')
                 icon_boxes.append({
                     "type": item.get('type', 'icon'),
-                    "text": item.get('text', ''),
+                    "text": caption,  # This will contain the Florence-generated caption if captioning is enabled
+                    "caption": caption,  # Explicit caption field
                     "bbox": item.get('bbox', []),
-                    "confidence": item.get('confidence', 0.0)
+                    "confidence": item.get('confidence', 0.0),
+                    "source": item.get('source', 'unknown')  # e.g., 'box_yolo_content_yolo' or 'box_yolo_content_ocr'
                 })
         
         # Combine all boxes
@@ -272,13 +303,13 @@ async def detect_objects(
             "total_elements": len(all_boxes),
             "text_elements": len(ocr_boxes),
             "icon_elements": len(icon_boxes),
+            "captioning_enabled": use_local_semantics,
             "bounding_boxes": all_boxes,
             "timing": {
                 "total": round(total_time, 3),
                 "ocr": round(ocr_time, 3),
                 "yolo": round(yolo_time, 3)
-            },
-            "annotated_image_base64": dino_labled_img  # Base64 encoded annotated image
+            }
         })
         
     except Exception as e:
