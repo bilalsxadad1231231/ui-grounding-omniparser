@@ -28,18 +28,19 @@ class YOLOOCRClient:
     def check_health(self) -> bool:
         """Check if the API server is healthy"""
         try:
-            response = requests.get(self.health_endpoint, timeout=5)
+            headers = {'ngrok-skip-browser-warning': 'true'}
+            response = requests.get(self.health_endpoint, headers=headers, timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ API Server is healthy")
+                print(f"[OK] API Server is healthy")
                 print(f"   Models loaded: {data.get('models_loaded', False)}")
                 print(f"   CUDA available: {data.get('cuda_available', False)}")
                 return True
             else:
-                print(f"❌ API Server returned status {response.status_code}")
+                print(f"[ERROR] API Server returned status {response.status_code}")
                 return False
         except requests.exceptions.RequestException as e:
-            print(f"❌ Cannot connect to API server at {self.api_url}")
+            print(f"[ERROR] Cannot connect to API server at {self.api_url}")
             print(f"   Error: {str(e)}")
             print(f"   Make sure the server is running: python api_yolo_ocr.py")
             return False
@@ -78,20 +79,21 @@ class YOLOOCRClient:
                     'high_quality': high_quality
                 }
                 
-                print(f"📤 Sending {os.path.basename(image_path)} to API...")
-                response = requests.post(self.detect_endpoint, files=files, data=data, timeout=120)
+                print(f"Sending {os.path.basename(image_path)} to API...")
+                headers = {'ngrok-skip-browser-warning': 'true'}
+                response = requests.post(self.detect_endpoint, files=files, data=data, headers=headers, timeout=120)
                 
                 if response.status_code == 200:
                     result = response.json()
-                    print(f"✅ Received {result.get('total_elements', 0)} detections")
+                    print(f"[OK] Received {result.get('total_elements', 0)} detections")
                     return result
                 else:
-                    print(f"❌ API returned error: {response.status_code}")
+                    print(f"[ERROR] API returned error: {response.status_code}")
                     print(f"   {response.text}")
                     return None
                     
         except Exception as e:
-            print(f"❌ Error processing {image_path}: {str(e)}")
+            print(f"[ERROR] Error processing {image_path}: {str(e)}")
             return None
     
     def draw_boxes_on_image(
@@ -122,10 +124,10 @@ class YOLOOCRClient:
                 image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
                 if output_path:
                     image.save(output_path)
-                    print(f"💾 Saved annotated image to {output_path}")
+                    print(f"[SAVED] Annotated image saved to {output_path}")
                 return image
             except Exception as e:
-                print(f"⚠️ Could not use API annotated image, drawing manually: {e}")
+                print(f"[WARNING] Could not use API annotated image, drawing manually: {e}")
         
         # Otherwise, draw boxes manually
         image = Image.open(image_path).convert("RGB")
@@ -174,7 +176,7 @@ class YOLOOCRClient:
         
         if output_path:
             image.save(output_path)
-            print(f"💾 Saved annotated image to {output_path}")
+            print(f"[SAVED] Annotated image saved to {output_path}")
         
         return image
     
@@ -204,7 +206,7 @@ class YOLOOCRClient:
         """
         # Validate directory
         if not os.path.isdir(directory_path):
-            print(f"❌ Directory not found: {directory_path}")
+            print(f"[ERROR] Directory not found: {directory_path}")
             return
         
         # Check API health
@@ -226,11 +228,11 @@ class YOLOOCRClient:
                 image_files.append(os.path.join(directory_path, file))
         
         if not image_files:
-            print(f"❌ No image files found in {directory_path}")
+            print(f"[ERROR] No image files found in {directory_path}")
             return
         
-        print(f"\n📁 Found {len(image_files)} image(s) to process")
-        print(f"💾 Output directory: {output_dir}\n")
+        print(f"\nFound {len(image_files)} image(s) to process")
+        print(f"Output directory: {output_dir}\n")
         
         # Process each image
         results_summary = []
@@ -266,14 +268,14 @@ class YOLOOCRClient:
                 if save_json:
                     with open(json_path, 'w') as f:
                         json.dump(result, f, indent=2)
-                    print(f"💾 Saved JSON results to {json_path}")
+                    print(f"[SAVED] JSON results saved to {json_path}")
                 
                 # Print summary
                 timing = result.get('timing', {})
-                print(f"   ⏱️  Total: {timing.get('total', 0):.2f}s | "
+                print(f"   Total: {timing.get('total', 0):.2f}s | "
                       f"OCR: {timing.get('ocr', 0):.2f}s | "
                       f"YOLO: {timing.get('yolo', 0):.2f}s")
-                print(f"   📊 Detections: {result.get('total_elements', 0)} total | "
+                print(f"   Detections: {result.get('total_elements', 0)} total | "
                       f"{result.get('text_elements', 0)} text | "
                       f"{result.get('icon_elements', 0)} icons")
                 
@@ -285,11 +287,11 @@ class YOLOOCRClient:
                     'total_time': timing.get('total', 0)
                 })
             else:
-                print(f"   ❌ Failed to process image")
+                print(f"   [ERROR] Failed to process image")
         
         # Print final summary
         print(f"\n{'='*60}")
-        print(f"✅ Processing complete!")
+        print(f"[OK] Processing complete!")
         print(f"   Processed: {len(results_summary)}/{len(image_files)} images")
         if results_summary:
             avg_time = sum(r['total_time'] for r in results_summary) / len(results_summary)
@@ -302,9 +304,9 @@ class YOLOOCRClient:
 def main():
     parser = argparse.ArgumentParser(description="Process images through YOLO OCR API")
     parser.add_argument(
-        "directory",
+        "input_path",
         type=str,
-        help="Directory path containing images to process"
+        help="Directory path or single image file path to process"
     )
     parser.add_argument(
         "--api-url",
@@ -355,18 +357,82 @@ def main():
     
     args = parser.parse_args()
     
-    # Create client and process directory
+    # Create client
     client = YOLOOCRClient(api_url=args.api_url)
-    client.process_directory(
-        directory_path=args.directory,
-        output_dir=args.output_dir,
-        use_paddleocr=args.use_paddleocr,
-        box_threshold=args.box_threshold,
-        iou_threshold=args.iou_threshold,
-        imgsz=args.imgsz,
-        high_quality=args.high_quality,
-        save_json=not args.no_json
-    )
+    
+    # Check if input is a file or directory
+    if os.path.isfile(args.input_path):
+        # Process single image
+        print(f"Processing single image: {args.input_path}")
+        
+        # Check API health
+        if not client.check_health():
+            return
+        
+        # Setup output directory
+        if args.output_dir is None:
+            output_dir = os.path.dirname(args.input_path) or "."
+        else:
+            output_dir = args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Detect objects
+        result = client.detect_objects(
+            args.input_path,
+            use_paddleocr=args.use_paddleocr,
+            box_threshold=args.box_threshold,
+            iou_threshold=args.iou_threshold,
+            imgsz=args.imgsz,
+            high_quality=args.high_quality
+        )
+        
+        if result and result.get('success'):
+            # Prepare output paths
+            base_name = Path(args.input_path).stem
+            annotated_path = os.path.join(output_dir, f"{base_name}_annotated.png")
+            json_path = os.path.join(output_dir, f"{base_name}_results.json")
+            
+            # Draw boxes and save
+            annotated_image = client.draw_boxes_on_image(
+                args.input_path,
+                result.get('bounding_boxes', []),
+                output_path=annotated_path,
+                use_api_image=True,
+                annotated_image_base64=result.get('annotated_image_base64')
+            )
+            
+            # Save JSON results
+            if not args.no_json:
+                with open(json_path, 'w') as f:
+                    json.dump(result, f, indent=2)
+                print(f"[SAVED] JSON results saved to {json_path}")
+            
+            # Print summary
+            timing = result.get('timing', {})
+            print(f"\n{'='*60}")
+            print(f"[OK] Processing complete!")
+            print(f"   Total: {timing.get('total', 0):.2f}s | "
+                  f"OCR: {timing.get('ocr', 0):.2f}s | "
+                  f"YOLO: {timing.get('yolo', 0):.2f}s")
+            print(f"   Detections: {result.get('total_elements', 0)} total | "
+                  f"{result.get('text_elements', 0)} text | "
+                  f"{result.get('icon_elements', 0)} icons")
+            print(f"   Annotated image saved to: {annotated_path}")
+            print(f"{'='*60}\n")
+        else:
+            print(f"[ERROR] Failed to process image")
+    else:
+        # Process directory
+        client.process_directory(
+            directory_path=args.input_path,
+            output_dir=args.output_dir,
+            use_paddleocr=args.use_paddleocr,
+            box_threshold=args.box_threshold,
+            iou_threshold=args.iou_threshold,
+            imgsz=args.imgsz,
+            high_quality=args.high_quality,
+            save_json=not args.no_json
+        )
 
 if __name__ == "__main__":
     main()
